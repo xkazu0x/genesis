@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
 
 #if defined(__clang__)
 # define COMPILER_CLANG 1
@@ -141,6 +142,60 @@ array_test(void) {
 }
 
 ////////////////////////////////
+// NOTE(xkazu0x): String Interning
+
+typedef struct {
+    size_t length;
+    const char *str;
+} String;
+
+global String *interns;
+
+internal const char *
+string_intern_range(const char *start, const char *end) {
+    size_t length = end - start;
+    
+    for (size_t intern_index = 0;
+         intern_index < array_length(interns);
+         ++intern_index) {
+        String *intern = interns + intern_index;
+        if ((intern->length == length) &&
+            (strncmp(intern->str, start, length) == 0)) {
+            return(intern->str);
+        }
+    }
+
+    char *str = xmalloc(length + 1);
+    memcpy(str, start, length);
+    str[length] = 0;
+        
+    array_push(interns, ((String){length, str}));
+    
+    return(str);
+}
+
+internal const char *
+string_intern(const char *str) {
+    const char *result = string_intern_range(str, str + strlen(str));
+    return(result);
+}
+
+internal void
+string_intern_test() {
+    char x[] = "hello";
+    char y[] = "hello";
+    assert(x != y);
+    
+    const char *px = string_intern(x);
+    const char *py = string_intern(y);
+    assert(px == py);
+
+    char z[] = "hello!";
+    const char *pz = string_intern(z);
+    assert(pz != px);
+}
+
+////////////////////////////////
 // NOTE(xkazu0x): Lexing
 
 typedef enum {
@@ -155,11 +210,22 @@ typedef struct {
     const char *end;
     union {
         u64 value;
+        const char *name;
     };
 } Token;
 
 Token token;
 const char *stream;
+
+const char *keyword_if;
+const char *keyword_for;
+const char *keyword_while;
+
+void init_keywords() {
+    keyword_if = string_intern("if");
+    keyword_for = string_intern("for");
+    keyword_while = string_intern("while");
+}
 
 internal void
 next_token(void) {
@@ -241,6 +307,7 @@ next_token(void) {
                 stream++;
             }
             token.type = TokenType_Name;
+            token.name = string_intern_range(token.start, stream);
         } break;
             
         default: {
@@ -267,7 +334,7 @@ print_token() {
 
 internal void
 lex_test(void) {
-    char *source = "+()_HELLO1,234+FOO!994";
+    char *source = "XY+(XY)_HELLO1,234+FOO!994";
     stream = source;
     next_token();
     while (token.type) {
@@ -283,6 +350,7 @@ int
 main(void) {
     array_test();
     lex_test();
+    string_intern_test();
     printf("goodbye world");
     return(0);
 }
