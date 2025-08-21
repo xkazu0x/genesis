@@ -9,7 +9,7 @@ if "%debug%"=="1" set release=0 && echo [debug mode]
 if "%release%"=="1" set debug=0 && echo [release mode]
 
 :: --- Define Compile/Link Lines -------------------------------
-set cl_common=  /I..\src\ /nologo /FC /Z7 /W4
+set cl_common=  /I..\src\ /nologo /FC /Z7 /W4 /wd4200
 set cl_debug=   call cl /Od /Ob1 /DBUILD_DEBUG=1 %cl_common%
 set cl_release= call cl /O2 /DBUILD_DEBUG=1 %cl_common%
 set cl_dll=     /LD
