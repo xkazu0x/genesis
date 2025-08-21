@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 ////////////////////////////////
 // NOTE(xkazu0x): Clang Context Cracking
@@ -112,8 +113,8 @@
 # define assert(x) (void)(x)
 #endif
 
-#define Min(a, b) ((a)<(b)?(a):(b))
-#define Max(a, b) ((a)>(b)?(a):(b))
+#define MIN(a, b) ((a)<(b)?(a):(b))
+#define MAX(a, b) ((a)>(b)?(a):(b))
 
 #define internal static
 #define global   static
@@ -162,7 +163,7 @@ typedef struct {
 
 internal void *
 buffer__grow(const void *buffer, size_t length, size_t element_size) {
-    size_t capacity = Max(1 + 2*buffer_capacity(buffer), length);
+    size_t capacity = MAX(1 + 2*buffer_capacity(buffer), length);
     assert(length <= capacity);
     size_t size = offsetof(Buffer_Header, buffer) + capacity*element_size;
     Buffer_Header *header;
@@ -177,7 +178,7 @@ buffer__grow(const void *buffer, size_t length, size_t element_size) {
 }
 
 internal void
-test_buffer(void) {
+buffer_test(void) {
     int *test = 0;
     assert(buffer_length(test) == 0);
     enum { N = 1024 };
@@ -197,8 +198,147 @@ test_buffer(void) {
     assert(buffer_length(test) == 0);
 }
 
+////////////////////////////////
+// NOTE(xkazu0x): Lexing
+
+typedef enum {
+    TOKEN_LAST_CHAR = 127,
+    TOKEN_INT,
+    TOKEN_NAME,
+} Token_Kind;
+
+typedef struct {
+    Token_Kind kind;
+    const char *start;
+    const char *end;
+    union {
+        uint64_t value;
+    };
+} Token;
+
+global Token global_token;
+const char *global_stream;
+
+internal void
+next_token() {
+    global_token.start = global_stream;
+    switch (*global_stream) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9': {
+            uint64_t value = 0;
+            if (isdigit(*global_stream)) {
+                value *= 10;
+                value += *global_stream++ - '0';
+            }
+            global_token.kind = TOKEN_INT;
+            global_token.value = value;
+        } break;
+            
+        case 'a':
+        case 'b':
+        case 'c':
+        case 'd':
+        case 'e':
+        case 'f':
+        case 'g':
+        case 'h':
+        case 'i':
+        case 'j':
+        case 'k':
+        case 'l':
+        case 'm':
+        case 'n':
+        case 'o':
+        case 'p':
+        case 'q':
+        case 'r':
+        case 's':
+        case 't':
+        case 'u':
+        case 'v':
+        case 'w':
+        case 'x':
+        case 'y':
+        case 'z':
+        case 'A':
+        case 'B':
+        case 'C':
+        case 'D':
+        case 'E':
+        case 'F':
+        case 'G':
+        case 'H':
+        case 'I':
+        case 'J':
+        case 'K':
+        case 'L':
+        case 'M':
+        case 'N':
+        case 'O':
+        case 'P':
+        case 'Q':
+        case 'R':
+        case 'S':
+        case 'T':
+        case 'U':
+        case 'V':
+        case 'W':
+        case 'X':
+        case 'Y':
+        case 'Z':
+        case '_': {
+            while (isalnum(*global_stream) || (*global_stream == '_')) {
+                global_stream++;
+            }
+            global_token.kind = TOKEN_NAME;
+        } break;
+            
+        default: {
+            global_token.kind = *global_stream++;
+        } break;
+    }
+    global_token.end = global_stream;
+}
+
+internal void
+print_token(Token token) {
+    switch (token.kind) {
+        case TOKEN_INT: {
+            printf("Token Int: %llu\n", token.value);
+        } break;
+            
+        case TOKEN_NAME: {
+            printf("Token Name: %.*s\n", (int)(token.end - token.start), token.start);
+        } break;
+            
+        default: {
+            printf("Token '%c'\n", token.kind);
+        } break;
+    }
+};
+
+internal void
+lexing_test(void) {
+    char *source = "+()_HELLO1,234+FOO!994";
+    global_stream = source;
+    next_token();
+    while (global_token.kind) {
+        print_token(global_token);
+        next_token();
+    }
+}
+
 int
 main(void) {
-    test_buffer();
+    buffer_test();
+    lexing_test();
     return(0);
 }
