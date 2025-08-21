@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
 
 ////////////////////////////////
 // NOTE(xkazu0x): Clang Context Cracking
@@ -179,6 +180,7 @@ buffer__grow(const void *buffer, size_t length, size_t element_size) {
 
 internal void
 buffer_test(void) {
+    printf("[buffer test]\n");
     int *test = 0;
     assert(buffer_length(test) == 0);
     enum { N = 1024 };
@@ -199,7 +201,56 @@ buffer_test(void) {
 }
 
 ////////////////////////////////
-// NOTE(xkazu0x): Lexing
+// NOTE(xkazu0x): String Intern
+
+typedef struct {
+    size_t length;
+    const char *str;
+} String;
+
+global String *global_interns;
+
+internal const char *
+string_intern_range(const char *start, const char *end) {
+    size_t length = end - start;
+    for (size_t intern_index = 0;
+         intern_index < buffer_length(global_interns);
+         ++intern_index) {
+        String *intern = global_interns + intern_index;
+        if ((intern->length == length) &&
+            (strncmp(intern->str, start, length) == 0)) {
+            return(intern->str);
+        }
+    }
+    char *str = xmalloc(length + 1);
+    memcpy(str, start, length);
+    str[length] = 0;
+    buffer_push(global_interns, ((String){length, str}));
+    return(str);
+}
+
+internal const char *
+string_intern(const char *str) {
+    const char *result = string_intern_range(str, str + strlen(str));
+    return(result);
+}
+
+internal void
+string_intern_test(void) {
+    printf("[string intern test]\n");
+    char x[] = "hello";
+    char y[] = "hello";
+    assert(x != y);
+    const char *px = string_intern(x);
+    const char *py = string_intern(y);
+    assert(px == py);
+    char z[] = "hello!";
+    const char *pz = string_intern(z);
+    assert(pz != px);
+}
+
+////////////////////////////////
+// NOTE(xkazu0x): Lexer
 
 typedef enum {
     TOKEN_LAST_CHAR = 127,
@@ -213,6 +264,7 @@ typedef struct {
     const char *end;
     union {
         uint64_t value;
+        const char *name;
     };
 } Token;
 
@@ -299,6 +351,7 @@ next_token() {
                 global_stream++;
             }
             global_token.kind = TOKEN_NAME;
+            global_token.name = string_intern_range(global_token.start, global_stream);
         } break;
             
         default: {
@@ -326,8 +379,9 @@ print_token(Token token) {
 };
 
 internal void
-lexing_test(void) {
-    char *source = "+()_HELLO1,234+FOO!994";
+lexer_test(void) {
+    printf("[lexer test]\n");
+    char *source = "XY+(XY)_HELLO1,234+FOO!994";
     global_stream = source;
     next_token();
     while (global_token.kind) {
@@ -339,6 +393,7 @@ lexing_test(void) {
 int
 main(void) {
     buffer_test();
-    lexing_test();
+    string_intern_test();
+    lexer_test();
     return(0);
 }
